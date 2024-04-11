@@ -4,46 +4,75 @@ from datetime import datetime, timedelta
 import humanize
 import requests
 from flask import Flask, redirect, render_template, request, session, url_for
+from werkzeug import Response
 
+# Initialize Flask app
 app = Flask(__name__)
+
+# Load environment variables
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "your_secret_key")
-# TEMPO_CLIENT_ID = os.getenv("TEMPO_CLIENT_ID")
-# TEMPO_CLIENT_SECRET = os.getenv(
-#     "TEMPO_CLIENT_SECRET"
-# )
-# TEMPO_REDIRECT_URI = f"http://localhost:{os.getenv('PORT', '8080')}/oauth/callback/tempo"
 TEMPO_USER_TOKEN = os.getenv("TEMPO_USER_TOKEN")
 JIRA_CLIENT_ID = os.getenv("JIRA_CLIENT_ID")
 JIRA_CLIENT_SECRET = os.getenv("JIRA_CLIENT_SECRET")
-
 JIRA_REDIRECT_URI = os.getenv("JIRA_REDIRECT_URI")
 JIRA_CLOUD_NAME = os.getenv("JIRA_CLOUD_NAME")
 
-# OAuth2 details
-AUTHORIZATION_URL = "https://your_oauth_provider_url"
+# Define routes that do not require authentication
+UNAUTHENTICATED_ROUTES = [
+    "oauth_callback_jira",
+    "login_failure",
+    "static",
+    "login_jira",
+    "login_tempo",
+    None,
+]
 
 
-def fetch_issue_uri_from_worklog(issue_uri):
+@app.before_request
+def ensure_logged_in():
+    """Ensure the user is logged in for all routes except those in UNAUTHENTICATED_ROUTES."""
+    if request.endpoint in UNAUTHENTICATED_ROUTES:
+        return
+    if not user_is_authenticated():
+        return redirect(url_for("login_tempo"))
+
+
+def get_auth_token():
+    """Get the authentication token from the session if it exists and is not expired."""
+    if (
+        "token_jira" not in session
+        or "cloud_id" not in session
+        or "tempo_user_api_key" not in session
+        or "expiry_token_jira" not in session
+    ):
+        return None  # No token found
+    try:
+        expiry = datetime.fromtimestamp(session["expiry_token_jira"])
+        if datetime.utcnow() > expiry:
+            return None  # Token is expired
+        return session
+    except Exception:
+        return None  # Invalid token or other error
+
+
+def fetch_issue_uri_from_worklog(issue_uri: str) -> dict:
+    """
+    Fetches issue details from Jira.
+
+    :param issue_uri: The URI of the issue to fetch details for.
+    :return: A dictionary with issue details, or None if not found/error.
+    """
     issue_uri = issue_uri.replace(
-        "https://marss.atlassian.net", f"https://api.atlassian.com/ex/jira/{session['cloud_id']}"
+        f"https://{JIRA_CLOUD_NAME}.atlassian.net", f"https://api.atlassian.com/ex/jira/{session['cloud_id']}"
     )
     headers = {"Authorization": f"Bearer {session['token_jira']}", "Accept": "application/json"}
     interesting_fields = [
-        # "assignee",
-        # "aggregatetimespent",
-        # "aggregatetimeoriginalestimate",
-        # "aggregateprogress",
         "timespent",
         "creator",
-        # "created",
         "priority",
         "progress",
-        # "reporter",
         "status",
         "summary",
-        # "worklog",
-        # "description",
-        # "duedate",
         "issuetype",
     ]
     response = requests.get(
@@ -54,7 +83,6 @@ def fetch_issue_uri_from_worklog(issue_uri):
         headers=headers,
         timeout=10,
     )
-    print(f"{response=}")
     return response.json()
 
 
@@ -71,9 +99,11 @@ def login_tempo():
 
 @app.route("/oauth/callback/jira")
 def oauth_callback_jira():
+    """
+    Handle OAuth callback from Jira. If there is an error, redirect to the login failure page.
+    """
     error = request.args.get("error")
     if error:
-        # Handle login failure
         return redirect(url_for("login_failure"))
 
     code = request.args.get("code")
@@ -94,7 +124,7 @@ def oauth_callback_jira():
 
     access_token = token_response.json().get("access_token")
     expires_in = token_response.json().get("expires_in")
-    expiry = datetime.utcnow() + timedelta(seconds=expires_in)  # Example token expiry
+    expiry = datetime.utcnow() + timedelta(seconds=expires_in)
     acc_srcs = requests.get(
         "https://api.atlassian.com/oauth/token/accessible-resources",
         headers={"Authorization": f"Bearer {access_token}", "Accept": "application/json"},
@@ -111,60 +141,25 @@ def oauth_callback_jira():
 
 @app.route("/login/jira")
 def login_jira():
-    # If the user is not authenticated, redirect to the login process
+    """
+    If the user is not authenticated, redirect to the login process.
+    """
     auth_url = (
         "https://auth.atlassian.com/authorize?"
         "audience=api.atlassian.com&"
         f"client_id={JIRA_CLIENT_ID}&"
-        "scope=read:jira-work%20read:jira-user%20read:issue-worklog:jira%20read:issue-worklog.property:jira&"  # Update scopes as needed
-        # "scope=read:jira-work%20read:jira-user%20read:issue-worklog:jira%20read:issue-worklog.property:jira&"  # Update scopes as needed
+        "scope=read:jira-work%20read:jira-user%20read:issue-worklog:jira%20read:issue-worklog.property:jira&"
         f"redirect_uri={JIRA_REDIRECT_URI}&"
-        "state=awdjkjrjk2134awd&"  # Ensure this is a unique and non-guessable value
+        "state=awdjkjrjk2134awd&"
         "response_type=code&"
         "prompt=consent"
     )
     return redirect(auth_url)
 
 
-@app.before_request
-def ensure_logged_in():
-    print(request.endpoint)
-    if request.endpoint in [
-        "oauth_callback_jira",
-        "oauth_callback_tempo",
-        "login_failure",
-        "static",
-        "login_jira",
-        "login_tempo",
-        None,
-    ]:
-        # Avoid redirect loops for the OAuth callback and login failure routes
-        return
-    if not user_is_authenticated():
-        return redirect(url_for("login_tempo"))
-
-
 def user_is_authenticated():
     """Check if the current user has a valid, non-expired authentication token."""
     return get_auth_token() is not None
-
-
-def get_auth_token():
-    # token_data = request.cookies.get("auth_token")
-    if (
-        "token_jira" not in session
-        or "cloud_id" not in session
-        or "tempo_user_api_key" not in session
-        or "expiry_token_jira" not in session
-    ):
-        return None  # No token found
-    try:
-        expiry = datetime.fromtimestamp(session["expiry_token_jira"])
-        if datetime.utcnow() > expiry:
-            return None  # Token is expired
-        return session
-    except Exception:
-        return None  # Invalid token or other error
 
 
 @app.route("/login_failure")
@@ -236,7 +231,7 @@ def fetch_open_issues_for_user(account_id):
 
 
 @app.route("/dailysum")
-def dailysum():
+def dailysum() -> str:
     myself = fetch_myself()
     account_id = myself.get("accountId")
     open_issues_resp = fetch_open_issues_for_user(account_id)
@@ -252,7 +247,7 @@ def dailysum():
             {
                 "issue_summary": wl_content["fields"]["summary"],
                 "details": wl.get("description"),
-                "url": f"https://marss.atlassian.net/browse/{wl_content['key']}",
+                "url": f"https://{JIRA_CLOUD_NAME}.atlassian.net/browse/{wl_content['key']}",
                 "id": wl_content["key"],
                 "status": wl_content["fields"]["status"]["name"],
                 "time_spent": humanized,
@@ -264,7 +259,7 @@ def dailysum():
         open_issues.append(
             {
                 "issue_summary": open_issue["fields"]["summary"],
-                "url": f"https://marss.atlassian.net/browse/{open_issue['key']}",
+                "url": f"https://{JIRA_CLOUD_NAME}.atlassian.net/browse/{open_issue['key']}",
                 "id": open_issue["key"],
                 "status": open_issue["fields"]["status"]["name"],
             }
@@ -274,15 +269,16 @@ def dailysum():
 
 
 @app.route("/logout")
-def logout():
+def logout() -> Response:
     # Clear the authentication cookie by setting its expiration to a past date
     session.clear()
     return redirect(url_for("login_tempo"))
 
 
 @app.route("/")
-def homepage():
-    # return redirect(url_for("logout"))
+def homepage() -> Response:
+    """landing point"""
+    return redirect(url_for("logout"))
     return redirect(url_for("dailysum"))
 
 

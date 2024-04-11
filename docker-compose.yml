@@ -4,9 +4,10 @@ services:
     build: .
     ports:
       - "${PORT}:5000"
+    volumes:
+      - .:/app
     environment:
       FLASK_ENV: development
-      TEMPO_USER_TOKEN: ${TEMPO_USER_TOKEN}
       JIRA_CLIENT_ID: ${JIRA_CLIENT_ID}
       JIRA_CLIENT_SECRET: ${JIRA_CLIENT_SECRET}
       JIRA_REDIRECT_URI: http://${HOST_NAME}:${PORT}/oauth/callback/jira
