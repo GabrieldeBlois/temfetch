@@ -148,7 +148,7 @@ def login_jira():
         "https://auth.atlassian.com/authorize?"
         "audience=api.atlassian.com&"
         f"client_id={JIRA_CLIENT_ID}&"
-        "scope=read:jira-work%20read:jira-user%20read:issue-worklog:jira%20read:issue-worklog.property:jira&"
+        "scope=read:jira-work%20read:jira-user&"
         f"redirect_uri={JIRA_REDIRECT_URI}&"
         "state=awdjkjrjk2134awd&"
         "response_type=code&"
