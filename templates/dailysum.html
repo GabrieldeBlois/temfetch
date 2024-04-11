@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Issue List</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding: 20px;
+            line-height: 1.6;
+            background-color: #f4f4f4;
+            color: #333;
+        }
+        ul {
+            list-style: none;
+            padding: 0;
+        }
+        li {
+            background-color: #fff;
+            border-left: 4px solid #007bff;
+            margin-bottom: 10px;
+            padding: 10px 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        li:last-child {
+            margin-bottom: 0;
+        }
+        a {
+            color: #007bff;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        em {
+            color: #555;
+        }
+        strong {
+            color: #333;
+        }
+
+        /* Styling for the copyTodayBtn */
+        #copyTodayBtn {
+            background-color: #007bff; /* Button Color */
+            color: white; /* Text Color */
+            padding: 10px 20px; /* Padding around text */
+            border: none; /* Remove border */
+            border-radius: 5px; /* Rounded Corners */
+            cursor: pointer; /* Cursor to indicate it's clickable */
+            transition: background-color 0.3s ease; /* Smooth transition for hover effect */
+        }
+        
+        #copyTodayBtn:hover {
+            background-color: #0056b3; /* Darker shade for hover state */
+        }
+
+        #copyTodayBtn:active {
+            background-color: #004094; /* Even darker shade for active state */
+            transform: scale(0.98); /* Slightly scale down when pressed */
+        }
+
+    </style>
+</head>
+<body>
+    <button id="copyTodayBtn">Copy Today's Worklogs</button>
+    <div id="todayContent">
+    <h2>Today:</h2>
+        <ul>
+            {% for worklog in today_worklogs %}
+                <li>
+                    <a href="{{ worklog.url }}">{{ worklog.id }}</a>: {{ worklog.status }}: <em>{{ worklog.issue_summary }}</em>: <strong>{{ worklog.details }}</strong> - <em>took {{ worklog.time_spent }}</em>
+                </li>
+            {% endfor %}
+        </ul>
+    </div>
+    <h2>Tomorrow:</h2>
+    <ul>
+        {% for issue in open_issues %}
+            <li>
+                <a href="{{ issue.url }}">{{ issue.id }}</a>: {{ issue.status }}: <em>{{ issue.issue_summary }}</em>: <strong>type here</strong>
+            </li>
+        {% endfor %}
+    </ul>
+
+    <script>
+        // Array of humorous farewell sentences with HTML emojis
+        const farewellSentences = [
+            "I hope your train won't be late! 🚂",
+            "Nice work, now run, you fool! 🏃‍♂️💨",
+            "Don’t forget to pretend to work tomorrow! 🕵️‍♂️",
+            "May your coffee be strong and your Monday be short. ☕📅",
+            "Remember, the force will be with you. Always. ✨",
+            "Parting is such sweet sorrow. Just kidding, I can’t wait to leave. 😜",
+            "Keep the dream alive – hit the snooze button. 😴",
+            "Out of all the meetings we’ve had, this was by far the most recent. 🤷‍♂️",
+            "Don’t worry, I’m even worse at goodbyes than hellos. 🙈",
+            "Brace yourself, freedom is coming. 🗽",
+            "May your inbox be empty and your WiFi strong. 📧📶",
+            "Alert your village, you’re about to return. 🚩",
+            "Farewell! May your journey be free of traffic. 🚗🚫",
+            "On a scale of 1 to Voldemort, try not to be too much of a Harry today. 🧙‍♂️",
+            "Goodbye! I’ll miss ignoring you for most of the day. 👋😏"
+        ];
+
+        // Function to select a random farewell sentence
+        function getRandomFarewell() {
+            const index = Math.floor(Math.random() * farewellSentences.length);
+            return farewellSentences[index];
+        }
+
+        document.getElementById('copyTodayBtn').addEventListener('click', function() {
+            const button = document.getElementById('copyTodayBtn');
+            button.innerText = "Copying...";
+            const todayContent = document.getElementById('todayContent');
+            const range = document.createRange();
+            range.selectNode(todayContent);
+            window.getSelection().addRange(range);
+            try {
+                const successful = document.execCommand('copy');
+                button.innerText = successful ? getRandomFarewell() : "Failed to Copy! 😞";
+                setTimeout(function() { button.innerText = "Copy Today's Worklogs"; }, 2000); // Reset button text after 2 seconds
+            } catch(err) {
+                button.innerText = "Oops, unable to copy";
+                setTimeout(function() { button.innerText = "Copy Today's Worklogs"; }, 2000);
+            }
+            window.getSelection().removeAllRanges();
+        });
+    </script>
+</body>
+</html>
