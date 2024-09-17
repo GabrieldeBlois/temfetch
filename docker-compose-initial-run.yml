@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  certbot:
+    image: certbot/certbot:latest
+    volumes:
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+    entrypoint: "/bin/sh -c"
+    command: >
+      certonly --webroot
+      --webroot-path=/var/www/certbot
+      --email ${MAINTAINER_EMAIL}
+      --agree-tos
+      --no-eff-email
+      -d ${HOST_NAME} -d www.${HOST_NAME}
+      --deploy-hook "nginx -s reload"
+volumes:
+  certbot:
